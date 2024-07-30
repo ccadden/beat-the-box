@@ -11,9 +11,13 @@ type Strategy int
 const (
 	Random = iota
 	Smort
+	Count
 )
 
-var schemes []Strategy = []Strategy{Random, Smort}
+const MIDPOINT int = 8
+const CARD_VIBES int = 7
+
+var schemes []Strategy = []Strategy{Random, Smort, Count}
 
 var results map[Strategy]map[rune]int = map[Strategy]map[rune]int{}
 
@@ -82,8 +86,11 @@ func (b *Box) MostExtremeCard() (int, int) {
 			extremeIdx = idx
 			extreme = val
 		} else {
-			// 8 is the midpoint? so furtherst distance from 8 would be most extreme
-			if Abs(val-8) > extreme {
+			if val == 2 || val == 14 { // pErFoRmAnCe
+				return idx, val
+			}
+			// furtherst distance from midpoint would be most extreme
+			if Abs(val-MIDPOINT) > extreme {
 				extreme = val
 				extremeIdx = idx
 			}
@@ -138,6 +145,8 @@ func async(strat Strategy, m *sync.Mutex, wg *sync.WaitGroup) {
 		result = RandomBeatTheBox()
 	case Smort:
 		result = SmortBeatTheBox()
+	case Count:
+		result = CardCountingBeatTheBox()
 	}
 
 	if result {
@@ -146,6 +155,85 @@ func async(strat Strategy, m *sync.Mutex, wg *sync.WaitGroup) {
 		results[strat]['L']++
 
 	}
+}
+
+func getHotness(card int) int {
+	switch {
+	case card < 7:
+		return 1
+	case card > 9:
+		return -1
+	default:
+		return 0
+	}
+}
+
+func CardCountingBeatTheBox() bool {
+	hotness := 0
+
+	d := NewDeck()
+	b := NewBox()
+
+	// populate the box
+	for range 9 {
+		num, ok := d.Deal()
+
+		if !ok {
+			panic("Couldn't deal card")
+		}
+
+		b.Add(num)
+	}
+
+	for !d.Empty() {
+		if b.Empty() {
+			return false
+		}
+
+		idx, val := b.MostExtremeCard()
+
+		// deal a card from the deck
+		newCard, ok := d.Deal()
+
+		if !ok {
+			panic("Couldn't deal card")
+		}
+
+		if Abs(hotness) > CARD_VIBES { // hotness exceeds the vibes limit
+			// Need to fix this block, not calculating whether it should be higher or lower correctly
+			if hotness < 0 { // lots of high cards have been played, low card more likely
+				if newCard < val {
+					b.Replace(idx, newCard)
+				} else {
+					b.Shrink(idx)
+				}
+			} else { // lots of low cards have been played, high card more likely
+				if newCard > val {
+					b.Replace(idx, newCard)
+				} else {
+					b.Shrink(idx)
+				}
+			}
+		} else { // use the default method
+			if val < MIDPOINT {
+				if newCard > val {
+					b.Replace(idx, newCard)
+				} else {
+					b.Shrink(idx)
+				}
+			} else { // card is "high" guess lower
+				if newCard < val {
+					b.Replace(idx, newCard)
+				} else {
+					b.Shrink(idx)
+				}
+			}
+		}
+
+		hotness += getHotness(newCard)
+	}
+
+	return true
 }
 
 func SmortBeatTheBox() bool {
@@ -178,7 +266,7 @@ func SmortBeatTheBox() bool {
 		}
 
 		// card is "low" guess higher
-		if val < 8 {
+		if val < MIDPOINT {
 			if newCard > val {
 				b.Replace(idx, newCard)
 			} else {
