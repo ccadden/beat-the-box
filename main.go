@@ -6,8 +6,6 @@ import (
 	"sync"
 )
 
-type Strategy int
-
 const (
 	Random = iota
 	Smort
@@ -15,12 +13,15 @@ const (
 )
 
 const MIDPOINT int = 8
-const CARD_VIBES int = 7
+const CARD_VIBES int = 10
+const BOX_SIZE int = 9
 
-var schemes []Strategy = []Strategy{Random, Smort, Count}
-
+var schemes map[string]Strategy = map[string]Strategy{"Random": Random, "Smort": Smort, "Count": Count}
 var results map[Strategy]map[rune]int = map[Strategy]map[rune]int{}
 
+type Strategy int
+
+// Aces considered high always -- for now
 type Deck struct {
 	cards []int
 }
@@ -33,18 +34,23 @@ func randBool() bool {
 	return rand.Float32() < 0.5
 }
 
+func getHotness(card int) int {
+	switch {
+	case card < 7:
+		return 1
+	case card > 9:
+		return -1
+	default:
+		return 0
+	}
+}
+
 func Abs(x int) int {
 	if x < 0 {
 		return -x
 	}
 
 	return x
-}
-
-func NewBox() *Box {
-	b := Box{}
-	b.cards = []int{}
-	return &b
 }
 
 func NewDeck() *Deck {
@@ -61,6 +67,46 @@ func NewDeck() *Deck {
 	d.Shuffle()
 
 	return &d
+}
+
+func (d *Deck) Shuffle() {
+	for i := range d.cards {
+		j := rand.Intn(i + 1)
+		d.cards[i], d.cards[j] = d.cards[j], d.cards[i]
+	}
+}
+
+func (d *Deck) Empty() bool {
+	return len(d.cards) == 0
+}
+
+func (d *Deck) Deal() (int, bool) {
+	if len(d.cards) == 0 {
+		return 0, false
+	}
+	deadNum := d.cards[0]
+	d.cards = d.cards[1:]
+
+	return deadNum, true
+}
+
+func NewBox() *Box {
+	b := Box{}
+	b.cards = []int{}
+	return &b
+}
+
+// Populate a Box from a Deck
+func (b *Box) PopulateFrom(d *Deck) {
+	for range BOX_SIZE {
+		num, ok := d.Deal()
+
+		if !ok {
+			panic("Couldn't deal card")
+		}
+
+		b.Add(num)
+	}
 }
 
 func (b *Box) Add(card int) {
@@ -100,17 +146,6 @@ func (b *Box) MostExtremeCard() (int, int) {
 	return extremeIdx, extreme
 }
 
-func (d *Deck) Shuffle() {
-	for i := range d.cards {
-		j := rand.Intn(i + 1)
-		d.cards[i], d.cards[j] = d.cards[j], d.cards[i]
-	}
-}
-
-func (d *Deck) Empty() bool {
-	return len(d.cards) == 0
-}
-
 func (b *Box) Empty() bool {
 	return len(b.cards) == 0
 }
@@ -120,16 +155,6 @@ func (b *Box) RandomCard() (int, int) {
 	idx := rand.Intn(len(b.cards))
 
 	return idx, b.cards[idx]
-}
-
-func (d *Deck) Deal() (int, bool) {
-	if len(d.cards) == 0 {
-		return 0, false
-	}
-	deadNum := d.cards[0]
-	d.cards = d.cards[1:]
-
-	return deadNum, true
 }
 
 func async(strat Strategy, m *sync.Mutex, wg *sync.WaitGroup) {
@@ -157,17 +182,6 @@ func async(strat Strategy, m *sync.Mutex, wg *sync.WaitGroup) {
 	}
 }
 
-func getHotness(card int) int {
-	switch {
-	case card < 7:
-		return 1
-	case card > 9:
-		return -1
-	default:
-		return 0
-	}
-}
-
 func CardCountingBeatTheBox() bool {
 	hotness := 0
 
@@ -175,15 +189,7 @@ func CardCountingBeatTheBox() bool {
 	b := NewBox()
 
 	// populate the box
-	for range 9 {
-		num, ok := d.Deal()
-
-		if !ok {
-			panic("Couldn't deal card")
-		}
-
-		b.Add(num)
-	}
+	b.PopulateFrom(d)
 
 	for !d.Empty() {
 		if b.Empty() {
@@ -241,15 +247,7 @@ func SmortBeatTheBox() bool {
 	b := NewBox()
 
 	// populate the box
-	for range 9 {
-		num, ok := d.Deal()
-
-		if !ok {
-			panic("Couldn't deal card")
-		}
-
-		b.Add(num)
-	}
+	b.PopulateFrom(d)
 
 	for !d.Empty() {
 		if b.Empty() {
@@ -289,15 +287,7 @@ func RandomBeatTheBox() bool {
 	b := NewBox()
 
 	// populate the box
-	for range 9 {
-		num, ok := d.Deal()
-
-		if !ok {
-			panic("Couldn't deal card")
-		}
-
-		b.Add(num)
-	}
+	b.PopulateFrom(d)
 
 	for !d.Empty() {
 		if b.Empty() {
@@ -336,7 +326,7 @@ func RandomBeatTheBox() bool {
 }
 
 func main() {
-	for _, strat := range schemes {
+	for label, strat := range schemes {
 		results[strat] = map[rune]int{'W': 0, 'L': 0}
 
 		var m sync.Mutex
@@ -347,9 +337,9 @@ func main() {
 		}
 
 		wg.Wait()
-		fmt.Println(strat)
+		fmt.Println(label)
 		fmt.Println("wins:", results[strat]['W'])
 		fmt.Println("losses:", results[strat]['L'])
-		fmt.Printf("win %%: %0.2f\n", float64(results[strat]['W'])/float64(results[strat]['L'])*100)
+		fmt.Printf("win %%: %0.2f\n\n", float64(results[strat]['W'])/float64(results[strat]['L'])*100)
 	}
 }
