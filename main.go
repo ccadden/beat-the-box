@@ -4,6 +4,11 @@ import (
 	"fmt"
 	"math/rand"
 	"sync"
+
+	"github.com/ccadden/beat-the-box/box"
+	"github.com/ccadden/beat-the-box/constants"
+	"github.com/ccadden/beat-the-box/deck"
+	"github.com/ccadden/beat-the-box/helpers"
 )
 
 const (
@@ -12,23 +17,12 @@ const (
 	Count
 )
 
-const MIDPOINT int = 8
-const CARD_VIBES int = 10
-const BOX_SIZE int = 9
-
 var schemes map[string]Strategy = map[string]Strategy{"Random": Random, "Smort": Smort, "Count": Count}
 var results map[Strategy]map[rune]int = map[Strategy]map[rune]int{}
 
 type Strategy int
 
 // Aces considered high always -- for now
-type Deck struct {
-	cards []int
-}
-
-type Box struct {
-	cards []int
-}
 
 func randBool() bool {
 	return rand.Float32() < 0.5
@@ -43,118 +37,6 @@ func getHotness(card int) int {
 	default:
 		return 0
 	}
-}
-
-func Abs(x int) int {
-	if x < 0 {
-		return -x
-	}
-
-	return x
-}
-
-func NewDeck() *Deck {
-	d := Deck{}
-	d.cards = make([]int, 52, 52)
-	count := 0
-	for i := range 13 {
-		for range 4 {
-			d.cards[count] = i + 2
-			count++
-		}
-	}
-
-	d.Shuffle()
-
-	return &d
-}
-
-func (d *Deck) Shuffle() {
-	for i := range d.cards {
-		j := rand.Intn(i + 1)
-		d.cards[i], d.cards[j] = d.cards[j], d.cards[i]
-	}
-}
-
-func (d *Deck) Empty() bool {
-	return len(d.cards) == 0
-}
-
-func (d *Deck) Deal() (int, bool) {
-	if len(d.cards) == 0 {
-		return 0, false
-	}
-	deadNum := d.cards[0]
-	d.cards = d.cards[1:]
-
-	return deadNum, true
-}
-
-func NewBox() *Box {
-	b := Box{}
-	b.cards = []int{}
-	return &b
-}
-
-// Populate a Box from a Deck
-func (b *Box) PopulateFrom(d *Deck) {
-	for range BOX_SIZE {
-		num, ok := d.Deal()
-
-		if !ok {
-			panic("Couldn't deal card")
-		}
-
-		b.Add(num)
-	}
-}
-
-func (b *Box) Add(card int) {
-	b.cards = append(b.cards, card)
-}
-
-func (b *Box) Replace(idx, value int) {
-	b.cards[idx] = value
-}
-
-func (b *Box) Shrink(idx int) {
-	b.cards[idx] = b.cards[len(b.cards)-1]
-	b.cards = b.cards[:len(b.cards)-1]
-}
-
-// returns the index and value of the card which has the highest or lowest value
-func (b *Box) MostExtremeCard() (int, int) {
-	var extremeIdx int
-	var extreme int
-
-	for idx, val := range b.cards {
-		if idx == 0 {
-			extremeIdx = idx
-			extreme = val
-		} else {
-			if val == 2 || val == 14 { // pErFoRmAnCe
-				return idx, val
-			}
-			// furtherst distance from midpoint would be most extreme
-			if Abs(val-MIDPOINT) > extreme {
-				extreme = val
-				extremeIdx = idx
-			}
-		}
-	}
-
-	return extremeIdx, extreme
-}
-
-func (b *Box) Empty() bool {
-	return len(b.cards) == 0
-}
-
-// returns idx and value of random card in box
-func (b *Box) RandomCard() (int, int) {
-	idx := rand.Intn(len(b.cards))
-
-	return idx, b.cards[idx]
 }
 
 func async(strat Strategy, m *sync.Mutex, wg *sync.WaitGroup) {
@@ -185,8 +67,8 @@ func async(strat Strategy, m *sync.Mutex, wg *sync.WaitGroup) {
 func CardCountingBeatTheBox() bool {
 	hotness := 0
 
-	d := NewDeck()
-	b := NewBox()
+	d := deck.NewDeck()
+	b := box.NewBox()
 
 	// populate the box
 	b.PopulateFrom(d)
@@ -205,7 +87,7 @@ func CardCountingBeatTheBox() bool {
 			panic("Couldn't deal card")
 		}
 
-		if Abs(hotness) > CARD_VIBES { // hotness exceeds the vibes limit
+		if helpers.Abs(hotness) > constants.CARD_VIBES { // hotness exceeds the vibes limit
 			// Need to fix this block, not calculating whether it should be higher or lower correctly
 			if hotness < 0 { // lots of high cards have been played, low card more likely
 				if newCard < val {
@@ -221,7 +103,7 @@ func CardCountingBeatTheBox() bool {
 				}
 			}
 		} else { // use the default method
-			if val < MIDPOINT {
+			if val < constants.MIDPOINT {
 				if newCard > val {
 					b.Replace(idx, newCard)
 				} else {
@@ -243,8 +125,8 @@ func CardCountingBeatTheBox() bool {
 }
 
 func SmortBeatTheBox() bool {
-	d := NewDeck()
-	b := NewBox()
+	d := deck.NewDeck()
+	b := box.NewBox()
 
 	// populate the box
 	b.PopulateFrom(d)
@@ -264,7 +146,7 @@ func SmortBeatTheBox() bool {
 		}
 
 		// card is "low" guess higher
-		if val < MIDPOINT {
+		if val < constants.MIDPOINT {
 			if newCard > val {
 				b.Replace(idx, newCard)
 			} else {
@@ -283,8 +165,8 @@ func SmortBeatTheBox() bool {
 }
 
 func RandomBeatTheBox() bool {
-	d := NewDeck()
-	b := NewBox()
+	d := deck.NewDeck()
+	b := box.NewBox()
 
 	// populate the box
 	b.PopulateFrom(d)
