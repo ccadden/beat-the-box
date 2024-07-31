@@ -42,3 +42,7 @@ func (d *Deck) Deal() (int, bool) {
 
 	return deadNum, true
 }
+
+func (d *Deck) AddCard(card int) {
+	d.cards = append(d.cards, card)
+}
