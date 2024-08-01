@@ -46,3 +46,9 @@ func (d *Deck) Deal() (int, bool) {
 func (d *Deck) AddCard(card int) {
 	d.cards = append(d.cards, card)
 }
+
+func (d *Deck) AddCards(cards []int) {
+	for _, card := range cards {
+		d.AddCard(card)
+	}
+}
