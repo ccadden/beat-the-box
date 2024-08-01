@@ -43,6 +43,17 @@ func (d *Deck) Deal() (int, bool) {
 	return deadNum, true
 }
 
+func (d *Deck) DealMultiple(numCards int) ([]int, bool) {
+	if numCards > len(d.cards) {
+		return []int{}, false
+	}
+
+	deadCards := d.cards[:numCards]
+	d.cards = d.cards[numCards:]
+
+	return deadCards, true
+}
+
 func (d *Deck) AddCard(card int) {
 	d.cards = append(d.cards, card)
 }
