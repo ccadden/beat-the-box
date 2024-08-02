@@ -63,3 +63,7 @@ func (d *Deck) AddCards(cards []int) {
 		d.AddCard(card)
 	}
 }
+
+func (d *Deck) CardsRemaining() int {
+	return len(d.cards)
+}
